@@ -253,13 +253,27 @@ export default function ResumeAnalyzer() {
   if (analysisComplete && analysisResults) {
     return (
       <div className="container mx-auto px-4 py-8 animate-in fade-in duration-500">
-        <Button
-          variant="ghost"
-          onClick={() => { setAnalysisComplete(false); setProgressSteps([]); }}
-          className="mb-6 pl-0 hover:bg-transparent hover:text-primary gap-2"
-        >
-          <ArrowLeft className="w-4 h-4" /> New Scan
-        </Button>
+        <div className="flex justify-end mb-6">
+          <Button
+            variant="outline"
+            onClick={() => {
+              // Clear cached analysis so refresh won't restore old results
+              localStorage.removeItem("sm_last_analysis");
+              setAnalysisComplete(false);
+              setAnalysisResults(null);
+              setExtractedText("");
+              setSelectedFile(null);
+              setSelectedResumeId(null);
+              setSelectedResumeName(null);
+              setJobRole("");
+              setJobDescription("");
+              setProgressSteps([]);
+            }}
+            className="gap-2 px-6 py-2 border-primary/30 text-primary hover:bg-primary hover:text-primary-foreground transition-all duration-200 shadow-sm"
+          >
+            <ArrowLeft className="w-4 h-4" /> New Scan
+          </Button>
+        </div>
 
         <EnhancedAnalysisResults
           results={analysisResults}
@@ -269,12 +283,14 @@ export default function ResumeAnalyzer() {
         />
 
         {analysisResults.suggested_roles && analysisResults.suggested_roles.length > 0 && (
-          <div className="mt-12 mb-8">
+          <div className="mt-12 mb-8 max-w-7xl mx-auto">
             <SuggestedRoles
               roles={analysisResults.suggested_roles}
               onSelectRole={(role) => {
+                localStorage.removeItem("sm_last_analysis");
                 setJobRole(role);
                 setAnalysisComplete(false);
+                setAnalysisResults(null);
                 setProgressSteps([]);
                 const tpl = getRoleTemplate(role);
                 if (tpl) setJobDescription(tpl.sampleJD);

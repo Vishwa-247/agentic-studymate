@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, User, LogOut } from "lucide-react";
+import { Menu, X, User, LogOut, Layout } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -36,7 +36,6 @@ const Navbar = () => {
     { name: "DSA Sheet", href: "/dsa-sheet" },
     { name: "Mock Interview", href: "/mock-interview" },
     { name: "Resume Analyzer", href: "/resume-analyzer" },
-    { name: "Showcase", href: "/showcase" },
   ];
 
   const getInitials = (name: string) => {
@@ -120,6 +119,12 @@ const Navbar = () => {
                     <Link to="/dashboard" className="cursor-pointer w-full">
                       <User className="mr-2 h-4 w-4" />
                       <span>My Dashboard</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/showcase" className="cursor-pointer w-full">
+                      <Layout className="mr-2 h-4 w-4" />
+                      <span>Showcase</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -213,6 +218,13 @@ const Navbar = () => {
                   className="w-full px-4 py-3 text-center font-medium border border-border hover:bg-muted rounded-lg transition-colors"
                 >
                   Dashboard
+                </Link>
+                <Link
+                  to="/showcase"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="w-full px-4 py-3 text-center font-medium border border-border hover:bg-muted rounded-lg transition-colors"
+                >
+                  Showcase
                 </Link>
                 <Button 
                   variant="ghost" 

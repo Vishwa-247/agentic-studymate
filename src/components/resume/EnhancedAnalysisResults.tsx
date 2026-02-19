@@ -158,45 +158,51 @@ export const EnhancedAnalysisResults: React.FC<EnhancedAnalysisResultsProps> = (
 
           {/* TAB: FORMATTING */}
           <TabsContent value="formatting" className="outline-none animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <InfoBanner title="About Formatting" text="Ensures your resume is ATS-friendly and properly structured for both human readers and automated systems." />
+            <InfoBanner title="About Formatting" text="Ensures your resume is ATS-friendly and properly structured for both human readers and automated systems. Each section is analyzed independently." />
              <Card className="p-6 bg-orange-50/50 border-orange-100 mb-4">
                <h3 className="font-bold text-foreground mb-2 flex items-center gap-2">
                  <AlertCircle className="w-5 h-5 text-orange-500" /> AI Formatting Feedback
                </h3>
-               <p className="text-sm text-muted-foreground mb-4 whitespace-pre-line">
+               <p className="text-sm text-muted-foreground mb-0 whitespace-pre-line leading-relaxed">
                  {results.formatting_feedback || "General formatting looks okay, but check for manual errors."}
                </p>
              </Card>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <div className="grid grid-cols-1 gap-4">
                <FormattingCheck
                  title="Contact Information"
                  passed={Boolean(results.sections_analysis?.contact_info?.score >= 70)}
                  tip={results.sections_analysis?.contact_info?.feedback || "Include name, email, phone, LinkedIn, and location."}
+                 score={results.sections_analysis?.contact_info?.score}
                />
                <FormattingCheck
                  title="Professional Summary"
                  passed={Boolean(results.sections_analysis?.summary?.score >= 60)}
                  tip={results.sections_analysis?.summary?.feedback || "Add a 2-3 line summary tailored to the target role."}
+                 score={results.sections_analysis?.summary?.score}
                />
                <FormattingCheck
                  title="Work Experience Section"
                  passed={Boolean(results.sections_analysis?.experience?.score >= 60)}
                  tip={results.sections_analysis?.experience?.feedback || "Use reverse chronological order with bullet points."}
+                 score={results.sections_analysis?.experience?.score}
                />
                <FormattingCheck
                  title="Skills Section"
                  passed={Boolean(results.sections_analysis?.skills?.score >= 60)}
                  tip={results.sections_analysis?.skills?.feedback || "List skills in a dedicated section, categorized by type."}
+                 score={results.sections_analysis?.skills?.score}
                />
                <FormattingCheck
                  title="Education Section"
                  passed={Boolean(results.sections_analysis?.education?.score >= 60)}
                  tip={results.sections_analysis?.education?.feedback || "Include degree, institution, and graduation date."}
+                 score={results.sections_analysis?.education?.score}
                />
                <FormattingCheck
                  title="ATS Compatibility"
                  passed={atsScore >= 70}
                  tip={atsScore >= 70 ? "Resume appears ATS-compatible. Good use of standard headings." : "Use standard section headings (Experience, Education, Skills). Avoid tables, images, and multi-column layouts."}
+                 score={atsScore}
                />
              </div>
           </TabsContent>
@@ -249,28 +255,42 @@ const InfoBanner = ({ title, text }: { title: string; text: string }) => (
 );
 
 const RecruiterTip = ({ label, status, description }: { label: string, status: 'success' | 'warning' | 'error', description: string }) => (
-  <div className="flex gap-4 items-start pb-4 border-b last:border-0 last:pb-0">
-    <div className="mt-1">
+  <div className="flex gap-4 items-start pb-5 border-b last:border-0 last:pb-0">
+    <div className="mt-1 shrink-0">
       {status === 'success' && <CheckCircle2 className="w-5 h-5 text-green-500" />}
       {status === 'warning' && <AlertCircle className="w-5 h-5 text-yellow-500" />}
       {status === 'error' && <AlertCircle className="w-5 h-5 text-red-500" />}
     </div>
-    <div>
-      <h4 className="font-bold text-foreground text-sm mb-1">{label}</h4>
-      <p className="text-sm text-muted-foreground">{description}</p>
+    <div className="flex-1">
+      <div className="flex items-center gap-2 mb-1.5">
+        <h4 className="font-bold text-foreground text-sm">{label}</h4>
+        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+          status === 'success' ? 'bg-green-100 text-green-700' :
+          status === 'warning' ? 'bg-yellow-100 text-yellow-700' :
+          'bg-red-100 text-red-700'
+        }`}>{status === 'success' ? 'GOOD' : status === 'warning' ? 'IMPROVE' : 'CRITICAL'}</span>
+      </div>
+      <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
     </div>
   </div>
 );
 
-const FormattingCheck = ({ title, passed, tip }: { title: string, passed: boolean, tip: string }) => (
-  <Card className={`p-4 border ${passed ? 'border-green-200 bg-green-50/30' : 'border-red-200 bg-red-50/30'}`}>
+const FormattingCheck = ({ title, passed, tip, score }: { title: string, passed: boolean, tip: string, score?: number }) => (
+  <Card className={`p-5 border ${passed ? 'border-green-200 bg-green-50/30' : 'border-red-200 bg-red-50/30'}`}>
     <div className="flex items-start gap-3">
       <div className="mt-0.5">
         {passed ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <AlertCircle className="w-5 h-5 text-red-400" />}
       </div>
-      <div>
-        <h4 className="font-semibold text-sm text-foreground mb-1">{title}</h4>
-        <p className="text-xs text-muted-foreground leading-relaxed">{tip}</p>
+      <div className="flex-1">
+        <div className="flex items-center justify-between mb-1">
+          <h4 className="font-semibold text-sm text-foreground">{title}</h4>
+          {score !== undefined && (
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+              score >= 70 ? 'bg-green-100 text-green-700' : score >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+            }`}>{Math.round(score)}%</span>
+          )}
+        </div>
+        <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{tip}</p>
       </div>
     </div>
   </Card>

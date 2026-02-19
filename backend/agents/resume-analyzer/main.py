@@ -399,6 +399,77 @@ def generate_star_improvements(bullet: str, star_examples: List[Dict]) -> List[s
     
     return improvements[:3]  # Limit to top 3 most relevant suggestions
 
+async def enrich_star_with_llm(bullet_analysis: List[Dict], job_role: str, resume_text: str) -> List[Dict]:
+    """Use LLM to generate context-specific STAR improvements for each bullet point"""
+    if not groq_client or not bullet_analysis:
+        return bullet_analysis
+    
+    # Take top 10 bullets to keep prompt manageable
+    bullets_for_llm = bullet_analysis[:10]
+    bullets_text = "\n".join([f"{i+1}. \"{b['bullet']}\" (STAR score: {b['star_score']:.0%})" 
+                              for i, b in enumerate(bullets_for_llm)])
+    
+    prompt = f"""You are an expert resume coach specializing in the STAR method (Situation, Task, Action, Result).
+    
+Target Role: {job_role}
+
+Here are resume bullet points with their STAR scores:
+{bullets_text}
+
+For EACH bullet, provide 2-3 specific, actionable improvement suggestions that are DIRECTLY relevant to the bullet's content and the target role of {job_role}.
+
+Rules:
+- Reference the ACTUAL content of each bullet (don't give generic advice)
+- Show a REWRITTEN example for bullets scoring below 75%
+- Explain which STAR component is missing/weak
+- Tie improvements to what {job_role} recruiters look for
+
+Respond in JSON format:
+{{
+  "improvements": [
+    {{
+      "index": 1,
+      "suggestions": [
+        "Specific suggestion referencing the bullet content...",
+        "Rewrite example: 'Led migration of 3 microservices to Kubernetes, reducing deployment time by 60% and saving $12K/month in infrastructure costs'"
+      ]
+    }}
+  ]
+}}
+"""
+    
+    try:
+        response = groq_client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": "You are an expert resume coach. Provide specific, actionable STAR method improvements in valid JSON format. Reference actual bullet content."},
+                {"role": "user", "content": prompt}
+            ],
+            model="llama-3.3-70b-versatile",
+            temperature=0.3,
+            max_tokens=1500
+        )
+        
+        response_text = response.choices[0].message.content
+        if "```json" in response_text:
+            response_text = response_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in response_text:
+            response_text = response_text.split("```")[1].split("```")[0].strip()
+        
+        llm_data = json.loads(response_text)
+        llm_improvements = llm_data.get("improvements", [])
+        
+        # Merge LLM improvements into bullet_analysis
+        for item in llm_improvements:
+            idx = item.get("index", 0) - 1  # Convert to 0-based
+            if 0 <= idx < len(bullet_analysis):
+                bullet_analysis[idx]["improvements"] = item.get("suggestions", bullet_analysis[idx]["improvements"])
+        
+        print("✅ LLM-enriched STAR improvements generated")
+    except Exception as e:
+        print(f"⚠️ LLM STAR enrichment failed, using heuristic fallback: {e}")
+    
+    return bullet_analysis
+
 def generate_star_recommendations(star_scores: List[Dict], star_examples: List[Dict]) -> List[str]:
     """Generate overall STAR methodology recommendations"""
     recommendations = []
@@ -584,7 +655,7 @@ async def analyze_with_groq(resume_text: str, job_role: str, job_description: st
     print(f"✅ STAR analysis complete. Score: {star_analysis['score']}")
     
     prompt = f"""
-    You are a STRICT and CRITICAL resume analyzer. Analyze this resume for the position of {job_role}.
+    You are a STRICT and CRITICAL resume analyzer AND experienced {job_role} hiring manager. Analyze this resume for the position of {job_role}.
     Job Description: {job_description if job_description else "No job description provided - evaluate based on role requirements"}
 
     Resume Text:
@@ -616,25 +687,31 @@ async def analyze_with_groq(resume_text: str, job_role: str, job_description: st
         "overall_score": <0-100, BE STRICT - average should be 40-60 for most resumes>,
         "ats_score": <0-100, check formatting, keywords, structure>,
         "sections_analysis": {{
-            "contact_info": {{"score": <0-100>, "feedback": "Check if contact info is complete and professional"}},
-            "summary": {{"score": <0-100>, "feedback": "Is there a relevant summary for {job_role}?"}},
-            "experience": {{"score": <0-100>, "feedback": "Does experience match {job_role} requirements? BE CRITICAL"}},
-            "education": {{"score": <0-100>, "feedback": "Is education relevant to {job_role}?"}},
-            "skills": {{"score": <0-100>, "feedback": "Do skills match {job_role} needs? BE HONEST"}}
+            "contact_info": {{"score": <0-100>, "feedback": "Detailed feedback: check if name, email, phone, LinkedIn, GitHub, and location are present. Note any missing items specifically."}},
+            "summary": {{"score": <0-100>, "feedback": "Detailed feedback: Is there a professional summary? Is it tailored for {job_role}? What specific improvements would make it stronger? Mention exact phrases to add/remove."}},
+            "experience": {{"score": <0-100>, "feedback": "Detailed feedback: Analyze EACH role listed. Is the experience relevant to {job_role}? Are achievements quantified? What's missing that a {job_role} recruiter would look for? Be specific about which experiences are strong and which are weak."}},
+            "education": {{"score": <0-100>, "feedback": "Detailed feedback: Is the degree relevant? Are there relevant coursework, certifications, or academic projects for {job_role}? What certifications would strengthen this section?"}},
+            "skills": {{"score": <0-100>, "feedback": "Detailed feedback: Which listed skills are relevant for {job_role}? Which critical skills are missing? Categorize into must-have vs nice-to-have. Suggest specific skills to add."}}
         }},
         "recommendations": [
-            "List 3-5 SPECIFIC improvements needed for {job_role}",
+            "List 5-7 SPECIFIC improvements needed for {job_role}",
             "Focus on what's MISSING for this role",
-            "Be specific about gaps"
+            "Be specific about gaps",
+            "Include specific action items"
         ],
         "keyword_analysis": {{
             "matching_keywords": ["list keywords found that match {job_role}"],
             "missing_keywords": ["list critical keywords missing for {job_role}"],
             "keyword_density": <percentage of relevant keywords present>
         }},
-        "formatting_feedback": "Specific formatting improvements needed for ATS systems",
+        "formatting_feedback": "Provide 3-5 SPECIFIC formatting improvements: check section headings, bullet point consistency, font/margin assumptions, date formatting, use of bold/italics, page length, and ATS compatibility issues. Be detailed about each issue found.",
         "recruiter_tips": [
-            {{"label": "tip title", "status": "success|warning|error", "description": "explanation"}}
+            {{"label": "Experience Level Match", "status": "success|warning|error", "description": "Detailed analysis of whether experience level matches {job_role} requirements. Mention specific years, roles, and progression."}},
+            {{"label": "Achievement Impact", "status": "success|warning|error", "description": "Analysis of quantifiable achievements. Which bullets have strong metrics? Which need numbers? Give examples of how to quantify."}},
+            {{"label": "Technical Depth for {job_role}", "status": "success|warning|error", "description": "How well does the resume demonstrate depth in core {job_role} technologies? What's impressive and what's surface-level?"}},
+            {{"label": "Resume Storytelling", "status": "success|warning|error", "description": "Does the resume tell a coherent career story toward {job_role}? Are transitions explained? Is there a clear growth trajectory?"}},
+            {{"label": "Industry Keywords", "status": "success|warning|error", "description": "Analysis of industry-specific terminology, buzzwords, and jargon that {job_role} recruiters search for."}},
+            {{"label": "Competitive Edge", "status": "success|warning|error", "description": "What makes this candidate stand out (or not) compared to typical {job_role} applicants? Unique strengths and differentiators."}}
         ],
         "suggested_roles": [
             {{"title": "Role Title", "match_score": 0-100, "reasoning": "why this role fits", "key_skills": ["skill1", "skill2"]}}
@@ -642,6 +719,7 @@ async def analyze_with_groq(resume_text: str, job_role: str, job_description: st
     }}
     
     Remember: BE STRICT. If this resume isn't a good fit for {job_role}, the score should reflect that (30-50 range).
+    Recruiter tips MUST be detailed (2-3 sentences each) and specific to the actual resume content — never generic.
     """
     
     try:
@@ -654,7 +732,7 @@ async def analyze_with_groq(resume_text: str, job_role: str, job_description: st
                 ],
                 model="llama-3.3-70b-versatile",
                 temperature=0.1,
-                max_tokens=2000
+                max_tokens=3000
             )
             print("✅ Groq API response received successfully")
         except Exception as groq_error:
@@ -728,6 +806,12 @@ async def analyze_with_groq(resume_text: str, job_role: str, job_description: st
         print(f"   - ATS Score: {groq_analysis.get('ats_score', 50):.1f}% (25% weight)")
         print(f"   - Keywords: {keyword_analysis['keyword_density']:.1f}% (30% weight)")
         print(f"   - Skill Relevance: {skill_validation['relevance_score']:.1f}% (10% weight)")
+        
+        # Enrich STAR bullet improvements using LLM (context-specific)
+        print("🌟 Enriching STAR improvements with LLM...")
+        star_analysis['bullet_analysis'] = await enrich_star_with_llm(
+            star_analysis['bullet_analysis'], job_role, resume_text
+        )
         
         # Combine with specialized analysis
         result = {
