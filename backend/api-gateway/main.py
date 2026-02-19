@@ -40,11 +40,27 @@ from pydantic import BaseModel
 
 # ── Load .env from backend root ────────────────────────────────────
 backend_root = Path(__file__).parent.parent
+import sys
+sys.path.insert(0, str(backend_root))
 env_path = backend_root / ".env"
 load_dotenv(dotenv_path=env_path)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# ── Orchestrator v2 Engine ─────────────────────────────────────────
+from orchestrator.config import MODULES as ORCH_MODULES, load_config as orch_load_config
+from orchestrator.engine import DecisionEngine
+from orchestrator.models import SkillScores, UserState, Decision
+from orchestrator.state_manager import StateManager
+from orchestrator.circuit_breaker import CircuitBreakerRegistry
+from orchestrator.service_registry import ServiceRegistry
+from orchestrator.metrics import MetricsCollector as OrchMetrics
+try:
+    from shared.memory import create_user_memory
+    HAS_MEMORY = True
+except ImportError:
+    HAS_MEMORY = False
 
 # ══════════════════════════════════════════════════════════════════
 #  EMBEDDED MODULES — evaluator / orchestrator / job-search
@@ -195,69 +211,39 @@ async def _update_user_state_agg(pool: asyncpg.Pool, user_id: str) -> bool:
         return False
 
 
-# ── Orchestrator: rules ────────────────────────────────────────────
-WEAKNESS_THRESHOLD = 0.4
-MODULE_DESCRIPTIONS = {
-    "production_interview": "Mock Interview — practice production thinking, clarity, and adaptability.",
-    "interactive_course": "Interactive Course — learn system design, tradeoffs, and failure analysis.",
-    "dsa_practice": "DSA Practice — strengthen algorithm fundamentals with AI guidance.",
-    "resume_builder": "Resume Builder — optimize your resume for target roles.",
-    "project_studio": "Project Studio — apply your skills to a real project with AI agents.",
-    "onboarding": "Onboarding — set up your goals and preferences.",
-}
+# ── Orchestrator v2: production engine (replaces old inline rules) ──
+# The old _decide() threshold rules are now in orchestrator/engine.py
+# as a weighted multi-signal decision engine with:
+#   - 5-signal scoring (weakness severity, rate of change, recency,
+#     goal alignment, pattern signal)
+#   - Circuit breakers per downstream service
+#   - Diversity filter to prevent repeat recommendations
+#   - Full decision audit trail with explainability
+#   - Service health awareness
+WEAKNESS_THRESHOLD = 0.4  # kept for backward compat references
+MODULE_DESCRIPTIONS = {m: d.description for m, d in ORCH_MODULES.items()}
 
 
-def _decide(state: dict) -> Tuple[str, str]:
-    """Deterministic rule engine — module names match frontend MODULE_CONFIG."""
-    clarity = state.get("clarity_avg", 1.0) or 1.0
-    tradeoffs = state.get("tradeoff_avg", 1.0) or 1.0
-    adaptability = state.get("adaptability_avg", 1.0) or 1.0
-    failure = state.get("failure_awareness_avg", 1.0) or 1.0
-    dsa = state.get("dsa_predict_skill", 1.0) or 1.0
-
-    if clarity < WEAKNESS_THRESHOLD:
-        return "production_interview", f"Clarity score ({clarity:.2f}) is below {WEAKNESS_THRESHOLD}. Practice explaining your thinking clearly."
-    if tradeoffs < WEAKNESS_THRESHOLD:
-        return "interactive_course", f"Tradeoff awareness ({tradeoffs:.2f}) is below {WEAKNESS_THRESHOLD}. Study system design and tradeoff analysis."
-    if adaptability < WEAKNESS_THRESHOLD:
-        return "production_interview", f"Adaptability score ({adaptability:.2f}) is below {WEAKNESS_THRESHOLD}. Practice curveball scenarios."
-    if failure < WEAKNESS_THRESHOLD:
-        return "interactive_course", f"Failure awareness ({failure:.2f}) is below {WEAKNESS_THRESHOLD}. Learn about edge cases and failure modes."
-    if dsa < WEAKNESS_THRESHOLD:
-        return "dsa_practice", f"DSA skill ({dsa:.2f}) is below {WEAKNESS_THRESHOLD}. Practice algorithms."
-    return "project_studio", "All metrics are healthy (≥ 0.4). Apply your skills to a real project!"
-
-
-async def _generate_llm_reason(
-    pool: asyncpg.Pool, user_id: str, next_module: str, reason: str, scores: dict
+async def _generate_llm_reason_v2(
+    decision: Decision,
+    target_role: str = None,
+    primary_focus: str = None,
 ) -> str:
-    """Use Groq LLM to generate a human-readable explanation (Decision 2)."""
+    """LLM reasoning via the production orchestrator engine (Decision 2 pattern)."""
     if not GROQ_API_KEY:
-        return reason
+        return decision.rule_reason
 
-    # Fetch onboarding data for personalization
-    target_role = None
-    try:
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT target_role, primary_focus FROM user_onboarding WHERE user_id = $1",
-                user_id,
-            )
-            if row:
-                target_role = row.get("target_role")
-                primary_focus = row.get("primary_focus")
-    except Exception:
-        pass
-
-    scores_str = ", ".join(f"{k}: {v:.2f}" for k, v in scores.items() if v is not None)
+    scores_str = ", ".join(f"{k}: {v:.2f}" for k, v in (decision.scores or {}).items())
     context = f"Scores: {scores_str}"
     if target_role:
         context += f"\nTarget role: {target_role}"
-    if target_role and primary_focus:
+    if primary_focus:
         context += f"\nPrimary focus: {primary_focus}"
 
     prompt = f"""You are a career coach for a student using StudyMate, an AI learning platform.
-The orchestrator chose "{next_module}" because: {reason}
+The orchestrator chose "{decision.next_module}" (confidence: {decision.confidence:.0%}).
+Rule reason: {decision.rule_reason}
+Decision depth: {decision.depth.value}
 {context}
 
 Write 2 concise sentences:
@@ -268,69 +254,16 @@ Be specific, encouraging, and mention their target role if available.
 No preamble, no bullet points — just the 2 sentences."""
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                GROQ_URL,
-                headers={
-                    "Authorization": f"Bearer {GROQ_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": GROQ_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.3,
-                    "max_tokens": 150,
-                },
-            )
-            if resp.status_code == 200:
-                content = resp.json()["choices"][0]["message"]["content"].strip()
-                if content:
-                    return content
+        resp_text = await _llm_call_with_fallback(
+            [{"role": "user", "content": prompt}],
+            temperature=0.3,
+        )
+        if resp_text:
+            return resp_text
     except Exception as e:
         logger.warning(f"LLM reasoning failed: {e}")
 
-    return reason
-
-
-# ── Orchestrator: state helpers ─────────────────────────────────────
-DEFAULT_STATE = {
-    "clarity_avg": 1.0, "tradeoff_avg": 1.0, "adaptability_avg": 1.0,
-    "failure_awareness_avg": 1.0, "dsa_predict_skill": 1.0, "next_module": None,
-}
-
-
-async def _fetch_user_state(pool: asyncpg.Pool, user_id: str) -> dict:
-    try:
-        async with pool.acquire() as conn:
-            await conn.execute("""
-                INSERT INTO public.user_state (user_id) VALUES ($1)
-                ON CONFLICT (user_id) DO NOTHING
-            """, user_id)
-            row = await conn.fetchrow("""
-                SELECT user_id,
-                       COALESCE(clarity_avg,1.0) clarity_avg,
-                       COALESCE(tradeoff_avg,1.0) tradeoff_avg,
-                       COALESCE(adaptability_avg,1.0) adaptability_avg,
-                       COALESCE(failure_awareness_avg,1.0) failure_awareness_avg,
-                       COALESCE(dsa_predict_skill,1.0) dsa_predict_skill,
-                       next_module, last_update
-                FROM public.user_state WHERE user_id=$1
-            """, user_id)
-            return dict(row) if row else {**DEFAULT_STATE, "user_id": user_id}
-    except Exception as e:
-        logger.error(f"fetch_user_state failed: {e}")
-        return {**DEFAULT_STATE, "user_id": user_id}
-
-
-async def _update_next_module(pool: asyncpg.Pool, user_id: str, mod: str):
-    try:
-        async with pool.acquire() as conn:
-            await conn.execute("""
-                UPDATE public.user_state SET next_module=$2, last_update=NOW()
-                WHERE user_id=$1
-            """, user_id, mod)
-    except Exception as e:
-        logger.error(f"update_next_module failed: {e}")
+    return decision.rule_reason
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -342,6 +275,7 @@ DB_URL = os.getenv("SUPABASE_DB_URL", "")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 1. Database pool
     if DB_URL:
         try:
             app.state.pool = await asyncpg.create_pool(
@@ -355,7 +289,28 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("⚠️  SUPABASE_DB_URL not set — evaluator/orchestrator will be degraded")
         app.state.pool = None
+
+    # 2. Orchestrator v2 subsystems
+    orch_config = orch_load_config()
+    app.state.orch_engine = DecisionEngine(orch_config)
+    app.state.orch_cb = CircuitBreakerRegistry(
+        failure_threshold=orch_config.cb_failure_threshold,
+        recovery_timeout_s=orch_config.cb_recovery_timeout_s,
+        half_open_max_calls=orch_config.cb_half_open_max_calls,
+    )
+    app.state.orch_registry = ServiceRegistry(orch_config, app.state.orch_cb)
+    await app.state.orch_registry.start_monitoring()
+    app.state.orch_metrics = OrchMetrics(buffer_size=orch_config.metrics_buffer_size)
+    app.state.orch_state_mgr = StateManager(app.state.pool) if app.state.pool else None
+    logger.info(
+        "✅ Orchestrator v2 engine ready "
+        f"(weighted multi-signal, {orch_config.cb_failure_threshold}-fail circuit breaker)"
+    )
+
     yield
+
+    # Shutdown
+    await app.state.orch_registry.stop_monitoring()
     if getattr(app.state, "pool", None):
         await app.state.pool.close()
 
@@ -551,7 +506,14 @@ async def health_check():
     # Embedded services health
     db_ok = getattr(app.state, "pool", None) is not None
     service_health["evaluator"] = {"status": "healthy" if db_ok else "degraded", "embedded": True}
-    service_health["orchestrator"] = {"status": "healthy" if db_ok else "degraded", "embedded": True}
+    service_health["orchestrator"] = {
+        "status": "healthy" if db_ok else "degraded",
+        "embedded": True,
+        "version": "2.0.0",
+        "engine": "weighted-multi-signal",
+        "metrics": app.state.orch_metrics.health_summary(),
+        "circuit_breakers": app.state.orch_cb.all_status(),
+    }
     service_health["job-search"] = {"status": "healthy", "embedded": True}
 
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -965,90 +927,162 @@ async def api_evaluate(req: EvaluationRequest):
 
 @app.get("/api/next")
 async def api_next(user_id: str):
-    """Get next recommended module for a user (unified orchestrator logic)."""
-    pool = getattr(app.state, "pool", None)
-    if not pool:
+    """
+    Get next recommended module (Orchestrator v2 — weighted multi-signal engine).
+
+    Pipeline:
+    1. Fetch full user state (scores + onboarding + history)
+    2. Fetch memory context (patterns, stats)
+    3. Check service health → build availability map
+    4. Run weighted multi-signal decision engine
+    5. LLM reasoning (rules pick WHAT, LLM explains WHY)
+    6. Persist decision + update user_state
+    7. Return result with explainability
+    """
+    import time as _time
+    start = _time.monotonic()
+
+    engine: DecisionEngine = app.state.orch_engine
+    registry: ServiceRegistry = app.state.orch_registry
+    orch_metrics: OrchMetrics = app.state.orch_metrics
+    state_mgr: StateManager = app.state.orch_state_mgr
+
+    if not state_mgr:
         return {"next_module": "project_studio", "reason": "No DB — defaulting",
-                "description": MODULE_DESCRIPTIONS["project_studio"], "memory_context": "",
-                "weakness_trigger": None, "scores": None}
+                "description": MODULE_DESCRIPTIONS.get("project_studio", ""), "memory_context": "",
+                "weakness_trigger": None, "scores": None, "confidence": 0.5, "depth": "normal"}
 
-    state = await _fetch_user_state(pool, user_id)
-    next_mod, reason = _decide(state)
-
-    # Build scores dict for transparency
-    scores = {
-        "clarity_avg": state.get("clarity_avg", 1.0),
-        "tradeoff_avg": state.get("tradeoff_avg", 1.0),
-        "adaptability_avg": state.get("adaptability_avg", 1.0),
-        "failure_awareness_avg": state.get("failure_awareness_avg", 1.0),
-        "dsa_predict_skill": state.get("dsa_predict_skill", 1.0),
-    }
-
-    # Determine which metric triggered the decision
-    weakness_trigger = None
-    for metric, val in scores.items():
-        if (val or 1.0) < WEAKNESS_THRESHOLD:
-            weakness_trigger = metric
-            break
-
-    # LLM reasoning (Decision 2: rules determine WHAT, LLM explains WHY)
-    llm_reason = await _generate_llm_reason(pool, user_id, next_mod, reason, scores)
-
-    await _update_next_module(pool, user_id, next_mod)
-
-    # Persist decision to orchestrator_decisions (audit trail)
     try:
-        async with pool.acquire() as conn:
-            await conn.execute("""
-                INSERT INTO orchestrator_decisions (user_id, input_snapshot, next_module, depth, reason)
-                VALUES ($1, $2::jsonb, $3, $4, $5)
-            """, user_id,
-                json.dumps({"scores": scores, "weakness_trigger": weakness_trigger}),
-                next_mod,
-                2 if weakness_trigger else 1,
-                llm_reason)
-    except Exception as e:
-        logger.warning(f"Failed to persist decision log: {e}")
+        # Step 1: Full user state
+        user_state = await state_mgr.get_user_state(user_id)
+        logger.info(
+            f"User {user_id}: clarity={user_state.scores.clarity_avg:.2f}, "
+            f"tradeoffs={user_state.scores.tradeoff_avg:.2f}, "
+            f"adaptability={user_state.scores.adaptability_avg:.2f}, "
+            f"failure={user_state.scores.failure_awareness_avg:.2f}, "
+            f"dsa={user_state.scores.dsa_predict_skill:.2f}"
+        )
 
-    return {
-        "next_module": next_mod,
-        "reason": llm_reason,
-        "description": MODULE_DESCRIPTIONS.get(next_mod, next_mod),
-        "memory_context": "",
-        "weakness_trigger": weakness_trigger,
-        "scores": scores,
-    }
+        # Step 2: Memory context
+        memory_context = {}
+        if HAS_MEMORY and app.state.pool:
+            try:
+                memory = create_user_memory(user_id, app.state.pool)
+                memory_context = await memory.get_orchestrator_context()
+            except Exception as e:
+                logger.warning(f"Memory context fetch failed: {e}")
+
+        # Step 3: Service health map
+        service_health = {name: registry.is_healthy(name) for name in ORCH_MODULES}
+
+        # Step 4: Run decision engine
+        decision = engine.decide(user_state, memory_context, service_health)
+
+        # Step 5: LLM reasoning
+        decision.reason = await _generate_llm_reason_v2(
+            decision,
+            target_role=user_state.target_role,
+            primary_focus=user_state.primary_focus,
+        )
+
+        # Step 6: Persist + update
+        decision_id = await state_mgr.record_decision(user_id, decision)
+        decision.decision_id = decision_id
+        await state_mgr.update_next_module(user_id, decision.next_module)
+
+        # Step 7: Record metrics
+        elapsed_ms = (_time.monotonic() - start) * 1000
+        orch_metrics.record_decision(
+            user_id=user_id, module=decision.next_module,
+            depth=decision.depth.value, latency_ms=elapsed_ms,
+            confidence=decision.confidence,
+        )
+
+        memory_str = memory_context.get("weakness_summary", "")
+        if isinstance(memory_str, dict):
+            memory_str = str(memory_str)
+
+        logger.info(
+            f"Decision for {user_id}: {decision.next_module} "
+            f"(depth={decision.depth.value}, confidence={decision.confidence:.2f}, "
+            f"latency={elapsed_ms:.0f}ms)"
+        )
+
+        return {
+            "next_module": decision.next_module,
+            "reason": decision.reason,
+            "description": decision.description,
+            "memory_context": memory_str,
+            "weakness_trigger": decision.weakness_trigger,
+            "scores": decision.scores,
+            "confidence": decision.confidence,
+            "depth": decision.depth.value,
+            "decision_id": decision.decision_id,
+        }
+
+    except Exception as e:
+        logger.error(f"Decision pipeline failed for {user_id}: {e}", exc_info=True)
+        orch_metrics.record_error("decision_pipeline")
+        return {
+            "next_module": "project_studio",
+            "reason": "Something went wrong — defaulting to Project Studio.",
+            "description": MODULE_DESCRIPTIONS.get("project_studio", ""),
+            "memory_context": "", "weakness_trigger": None, "scores": None,
+            "confidence": 0.3, "depth": "normal",
+        }
 
 
 @app.get("/api/state/{user_id}")
 async def api_get_state(user_id: str):
-    """Get current user state (debug)."""
-    pool = getattr(app.state, "pool", None)
-    if not pool:
+    """Get current user state with context (Orchestrator v2)."""
+    state_mgr: StateManager = app.state.orch_state_mgr
+    if not state_mgr:
         raise HTTPException(status_code=503, detail="Database not available")
-    state = await _fetch_user_state(pool, user_id)
-    return state
+    state = await state_mgr.get_user_state(user_id)
+    depth = app.state.orch_engine._determine_depth(state)
+    return {
+        "user_id": user_id,
+        "clarity_avg": state.scores.clarity_avg,
+        "tradeoff_avg": state.scores.tradeoff_avg,
+        "adaptability_avg": state.scores.adaptability_avg,
+        "failure_awareness_avg": state.scores.failure_awareness_avg,
+        "dsa_predict_skill": state.scores.dsa_predict_skill,
+        "next_module": state.next_module,
+        "target_role": state.target_role,
+        "recent_modules": state.recent_modules[:5],
+        "depth": depth.value,
+    }
 
 
 @app.get("/api/orchestrator/decisions")
 async def api_get_decisions(user_id: str):
-    """Get recent orchestrator decision log for a user (audit trail)."""
-    pool = getattr(app.state, "pool", None)
-    if not pool:
+    """Get recent orchestrator decision log (audit trail)."""
+    state_mgr: StateManager = app.state.orch_state_mgr
+    if not state_mgr:
         raise HTTPException(status_code=503, detail="Database not available")
-    try:
-        async with pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT id, next_module, depth, reason, created_at
-                FROM orchestrator_decisions
-                WHERE user_id = $1
-                ORDER BY created_at DESC
-                LIMIT 8
-            """, user_id)
-            return [dict(row) for row in rows]
-    except Exception as e:
-        logger.error(f"Failed to fetch decision log: {e}")
-        return []
+    decisions = await state_mgr.get_decision_history(user_id, limit=8)
+    return decisions
+
+
+@app.get("/api/orchestrator/metrics")
+async def api_orch_metrics():
+    """Orchestrator metrics dashboard."""
+    orch_metrics: OrchMetrics = app.state.orch_metrics
+    return orch_metrics.summary()
+
+
+@app.get("/api/orchestrator/circuit-breakers")
+async def api_orch_circuit_breakers():
+    """Circuit breaker status for all downstream services."""
+    cb: CircuitBreakerRegistry = app.state.orch_cb
+    return cb.all_status()
+
+
+@app.get("/api/orchestrator/services")
+async def api_orch_services():
+    """Service registry with health status and latency."""
+    registry: ServiceRegistry = app.state.orch_registry
+    return registry.all_status()
 
 
 # ══════════════════════════════════════════════════════════════════
