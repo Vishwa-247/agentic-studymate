@@ -1,0 +1,204 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300..800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Base Colors - Crisp White & Deep Slate text */
+    --background: 210 40% 98%; /* Slightly cool white */
+    --foreground: 222 47% 11%; /* Deep Slate */
+
+    /* Card - Pure White for pop */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary - Electric Indigo (New Vibe) */
+    --primary: 230 85% 60%; /* Vibrant Indigo/Blue */
+    --primary-foreground: 210 40% 98%;
+
+    /* Secondary - Soft Blue-Grey */
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222 47% 11.2%;
+
+    /* Muted */
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    /* Accent - Subtle interactive hover */
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222 47% 11.2%;
+
+    /* Destructive */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    /* Borders & Inputs */
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 230 85% 60%; /* Matches Primary */
+
+    --radius: 0.75rem; /* Slightly more rounded for modern feel */
+
+    /* Custom "Sleek" Shadows */
+    --shadow-glow: 0 0 20px -5px hsl(230 85% 60% / 0.15);
+  }
+
+  /* Dark Mode Removed */
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  /* Modern clean scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/40 transition-colors;
+  }
+}
+
+@layer components {
+  /* Difficulty Badges - cleaner, less glows */
+  .badge.badge-easy { @apply bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800; }
+  .badge.badge-medium { @apply bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800; }
+  .badge.badge-hard { @apply bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800; }
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  @apply font-sans tracking-tight text-foreground;
+}
+
+/* Minimalist Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes aurora {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(5%, 5%) scale(1.1); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes shine {
+  from { transform: translateX(-150%) skewX(-20deg); }
+  to { transform: translateX(150%) skewX(-20deg); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-down {
+  animation: fadeDown 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-aurora {
+  animation: aurora 20s ease-in-out infinite transform-gpu;
+}
+
+.animate-shine {
+  animation: shine 2s infinite;
+}
+
+.animation-delay-100 { animation-delay: 100ms; }
+.animation-delay-200 { animation-delay: 200ms; }
+.animation-delay-500 { animation-delay: 500ms; }
+.animation-delay-1000 { animation-delay: 1000ms; }
+.animation-delay-2000 { animation-delay: 2000ms; }
+
+/* Clean code blocks */
+.prose pre {
+  @apply bg-slate-950 rounded-lg p-5 overflow-x-auto my-4 shadow-sm border border-slate-800;
+}
+
+.prose pre code {
+  @apply text-sm font-mono text-slate-50;
+  background: transparent;
+}
+
+.prose code:not(pre code) {
+  @apply bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 px-1.5 py-0.5 rounded text-sm font-mono border border-slate-200 dark:border-slate-700;
+}
+
+/* Quiz Options */
+.quiz-option-correct {
+  @apply border-2 bg-emerald-50 text-emerald-700 border-emerald-500 font-medium dark:bg-emerald-950/30 dark:text-emerald-400;
+}
+
+.quiz-option-incorrect {
+  @apply border-2 bg-rose-50 text-rose-700 border-rose-500 dark:bg-rose-950/30 dark:text-rose-400;
+}
+
+/* Matte Texture Overlay */
+.matte-texture {
+  position: relative;
+}
+
+.matte-texture::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: 
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 2px,
+      rgba(255, 255, 255, 0.015) 2px,
+      rgba(255, 255, 255, 0.015) 4px
+    ),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 1;
+}
+
+.matte-texture > * {
+  position: relative;
+  z-index: 2;
+}
+
+.section-divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsl(var(--border)) 50%,
+    transparent
+  );
+}

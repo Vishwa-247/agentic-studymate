@@ -1,0 +1,108 @@
+# Dependencies
+node_modules/
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/**/**/__pycache__/
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.staging
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Virtual environments
+.venv/
+venv/
+backend/.venv/
+
+# Logs
+*.log
+logs/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python specific
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.coverage
+.tox/
+nosetests.xml
+
+# TypeScript/JavaScript
+*.tsbuildinfo
+.eslintcache
+
+# Supabase
+.supabase/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Package manager files
+yarn.lock
+
+# Local development
+.local/
+temp/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# API Keys and secrets (additional safety)
+**/config/keys.js
+**/config/keys.json
+.clinerules/byterover-rules.md
+.kilocode/rules/byterover-rules.md
+.roo/rules/byterover-rules.md
+.windsurf/rules/byterover-rules.md
+.cursor/rules/byterover-rules.mdc
+.kiro/steering/byterover-rules.md
+.qoder/rules/byterover-rules.md
+.augment/rules/byterover-rules.md
+
+# Large model files
+*.pt
+*.pth
+*.h5
+*.pkl
+*.joblib
+backend/agents/emotion-detection/models/
+
+# Agent / AI tool files
+.agent/
+
+# Temp test scripts
+backend/test_keys.py

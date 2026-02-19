@@ -1,0 +1,58 @@
+# ===================================================
+# StudyMate Backend - Modern Compatible Requirements
+# Updated for Python 3.8+ compatibility
+# ===================================================
+
+# ============ Core FastAPI and Web Server ============
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+python-multipart>=0.0.6
+
+# ============ Flask (for Emotion Detection) ============
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# ============ Database Connections ============
+asyncpg>=0.29.0
+supabase>=2.19.0
+motor>=3.3.2
+pymongo>=4.6.0
+
+# ============ AI and Processing ============
+groq>=0.32.0
+google-generativeai>=0.3.2
+
+# ============ Computer Vision (for Emotion Detection) ============
+opencv-python>=4.8.1.78
+numpy>=1.24.3
+scipy>=1.11.4
+
+# ============ File Processing ============
+PyPDF2>=3.0.1
+python-docx>=1.1.0
+python-magic-bin>=0.4.14
+pytesseract>=0.3.10
+Pillow>=10.1.0
+pdf2image>=1.17.0
+
+# ============ Authentication and Security ============
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# ============ HTTP Client and Utilities ============
+httpx>=0.25.2
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# ============ Optional Services ============
+redis>=5.0.1
+
+# ============ Additional Utilities ============
+aiofiles>=23.2.1
+python-dateutil>=2.8.2
+
+
+
+
+

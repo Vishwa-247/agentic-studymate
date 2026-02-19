@@ -1,0 +1,327 @@
+{
+  "summary": {
+    "session_id": "studymate_demo_001",
+    "interview_type": "technical",
+    "start_time": "2026-02-16 22:03:53",
+    "duration_seconds": 4.019245862960815,
+    "total_recordings": 21,
+    "avg_stress": 0.388,
+    "max_stress": 0.662,
+    "min_stress": 0.256,
+    "stress_std": 0.136,
+    "stress_spikes": 0,
+    "calm_percentage": 66.7,
+    "stress_percentage": 4.8,
+    "avg_engagement": 0.61,
+    "min_engagement": 0.35,
+    "questions_asked": 4,
+    "per_question_analysis": [
+      {
+        "question_text": "Tell me about yourself and your background.",
+        "question_context": {
+          "question_text": "Tell me about yourself and your background.",
+          "question_type": "behavioral",
+          "difficulty": "easy",
+          "topic": "introduction",
+          "interview_stage": "warmup",
+          "expected_stress_range": [
+            0.2,
+            0.6
+          ],
+          "studymate_metric": "structure"
+        },
+        "duration_seconds": 1.005068302154541,
+        "avg_stress": 0.28215476190476185,
+        "peak_stress": 0.28215476190476185,
+        "stress_trend": "stable",
+        "avg_engagement": 0.65,
+        "deception_flags": 0,
+        "was_comfort_zone": true,
+        "was_struggle": false,
+        "recording_count": 5
+      },
+      {
+        "question_text": "Design a distributed cache like Redis. How would you handle consistency?",
+        "question_context": {
+          "question_text": "Design a distributed cache like Redis. How would you handle consistency?",
+          "question_type": "technical",
+          "difficulty": "hard",
+          "topic": "system_design",
+          "interview_stage": "main",
+          "expected_stress_range": [
+            0.4,
+            0.75
+          ],
+          "studymate_metric": "scalability_thinking"
+        },
+        "duration_seconds": 1.2067451477050781,
+        "avg_stress": 0.5708630952380953,
+        "peak_stress": 0.6624642857142857,
+        "stress_trend": "increasing",
+        "avg_engagement": 0.425,
+        "deception_flags": 21,
+        "was_comfort_zone": false,
+        "was_struggle": true,
+        "recording_count": 6
+      },
+      {
+        "question_text": "If you could redesign the internet from scratch, what would you change?",
+        "question_context": {
+          "question_text": "If you could redesign the internet from scratch, what would you change?",
+          "question_type": "curveball",
+          "difficulty": "hard",
+          "topic": "creative_thinking",
+          "interview_stage": "curveball",
+          "expected_stress_range": [
+            0.5,
+            0.85
+          ],
+          "studymate_metric": "adaptability"
+        },
+        "duration_seconds": 1.0042002201080322,
+        "avg_stress": 0.4067380952380953,
+        "peak_stress": 0.4923095238095238,
+        "stress_trend": "decreasing",
+        "avg_engagement": 0.6,
+        "deception_flags": 0,
+        "was_comfort_zone": false,
+        "was_struggle": false,
+        "recording_count": 5
+      },
+      {
+        "question_text": "Can you walk me through a time you optimized a database query?",
+        "question_context": {
+          "question_text": "Can you walk me through a time you optimized a database query?",
+          "question_type": "technical",
+          "difficulty": "medium",
+          "topic": "databases",
+          "interview_stage": "main",
+          "expected_stress_range": [
+            0.2,
+            0.6
+          ],
+          "studymate_metric": "tradeoff_awareness"
+        },
+        "duration_seconds": 0.9032320976257324,
+        "avg_stress": 0.25639285714285714,
+        "peak_stress": 0.25639285714285714,
+        "stress_trend": "stable",
+        "avg_engagement": 0.8,
+        "deception_flags": 0,
+        "was_comfort_zone": true,
+        "was_struggle": false,
+        "recording_count": 5
+      }
+    ],
+    "comfort_zones": [
+      "Tell me about yourself and your background.",
+      "Can you walk me through a time you optimized a database query?"
+    ],
+    "struggle_areas": [
+      "Design a distributed cache like Redis. How would you handle consistency?"
+    ],
+    "studymate_metrics": {
+      "clarification_habit": 0.61,
+      "structure": 0.671,
+      "tradeoff_awareness": 0.704,
+      "scalability_thinking": 0.613,
+      "failure_awareness": 1.0,
+      "adaptability": 0.626
+    },
+    "deception_analysis": {
+      "total_flags": 21,
+      "unique_flag_types": 6,
+      "high_risk_moments": 3,
+      "most_common_flags": [
+        [
+          "Avoiding eye contact",
+          5
+        ],
+        [
+          "Significant facial asymmetry",
+          4
+        ],
+        [
+          "Delayed response (thinking/fabricating)",
+          4
+        ]
+      ],
+      "overall_risk": "medium"
+    },
+    "recommendation": "\u2705 LOW RISK - Candidate appears genuine and calm throughout interview.",
+    "user_profile": {
+      "user_id": "user_abc123",
+      "target_role": "backend_engineer",
+      "experience_level": "intermediate",
+      "strengths": [
+        "algorithms",
+        "python",
+        "databases"
+      ],
+      "weaknesses": [
+        "system_design",
+        "distributed_systems"
+      ],
+      "focus_areas": [
+        "system design interviews",
+        "handling pressure"
+      ],
+      "previous_avg_stress": 0.52,
+      "session_count": 3
+    }
+  },
+  "per_question_analysis": [
+    {
+      "question_text": "Tell me about yourself and your background.",
+      "question_context": {
+        "question_text": "Tell me about yourself and your background.",
+        "question_type": "behavioral",
+        "difficulty": "easy",
+        "topic": "introduction",
+        "interview_stage": "warmup",
+        "expected_stress_range": [
+          0.2,
+          0.6
+        ],
+        "studymate_metric": "structure"
+      },
+      "duration_seconds": 1.005068302154541,
+      "avg_stress": 0.28215476190476185,
+      "peak_stress": 0.28215476190476185,
+      "stress_trend": "stable",
+      "avg_engagement": 0.65,
+      "deception_flags": 0,
+      "was_comfort_zone": true,
+      "was_struggle": false,
+      "recording_count": 5
+    },
+    {
+      "question_text": "Design a distributed cache like Redis. How would you handle consistency?",
+      "question_context": {
+        "question_text": "Design a distributed cache like Redis. How would you handle consistency?",
+        "question_type": "technical",
+        "difficulty": "hard",
+        "topic": "system_design",
+        "interview_stage": "main",
+        "expected_stress_range": [
+          0.4,
+          0.75
+        ],
+        "studymate_metric": "scalability_thinking"
+      },
+      "duration_seconds": 1.2067451477050781,
+      "avg_stress": 0.5708630952380953,
+      "peak_stress": 0.6624642857142857,
+      "stress_trend": "increasing",
+      "avg_engagement": 0.425,
+      "deception_flags": 21,
+      "was_comfort_zone": false,
+      "was_struggle": true,
+      "recording_count": 6
+    },
+    {
+      "question_text": "If you could redesign the internet from scratch, what would you change?",
+      "question_context": {
+        "question_text": "If you could redesign the internet from scratch, what would you change?",
+        "question_type": "curveball",
+        "difficulty": "hard",
+        "topic": "creative_thinking",
+        "interview_stage": "curveball",
+        "expected_stress_range": [
+          0.5,
+          0.85
+        ],
+        "studymate_metric": "adaptability"
+      },
+      "duration_seconds": 1.0042002201080322,
+      "avg_stress": 0.4067380952380953,
+      "peak_stress": 0.4923095238095238,
+      "stress_trend": "decreasing",
+      "avg_engagement": 0.6,
+      "deception_flags": 0,
+      "was_comfort_zone": false,
+      "was_struggle": false,
+      "recording_count": 5
+    },
+    {
+      "question_text": "Can you walk me through a time you optimized a database query?",
+      "question_context": {
+        "question_text": "Can you walk me through a time you optimized a database query?",
+        "question_type": "technical",
+        "difficulty": "medium",
+        "topic": "databases",
+        "interview_stage": "main",
+        "expected_stress_range": [
+          0.2,
+          0.6
+        ],
+        "studymate_metric": "tradeoff_awareness"
+      },
+      "duration_seconds": 0.9032320976257324,
+      "avg_stress": 0.25639285714285714,
+      "peak_stress": 0.25639285714285714,
+      "stress_trend": "stable",
+      "avg_engagement": 0.8,
+      "deception_flags": 0,
+      "was_comfort_zone": true,
+      "was_struggle": false,
+      "recording_count": 5
+    }
+  ],
+  "studymate_metrics": {
+    "clarification_habit": 0.61,
+    "structure": 0.671,
+    "tradeoff_awareness": 0.704,
+    "scalability_thinking": 0.613,
+    "failure_awareness": 1.0,
+    "adaptability": 0.626
+  },
+  "recommendations": [
+    {
+      "action": "recommend_practice",
+      "reason": "High stress (57%) on 'Design a distributed cache like Redis. How would y...' \u2014 recommend more practice on this topic.",
+      "suggested_topics": [
+        "system_design"
+      ],
+      "suggested_difficulty": "medium",
+      "confidence": 0.7
+    },
+    {
+      "action": "target_weakness",
+      "reason": "User is calm enough to practice weak areas.",
+      "suggested_topics": [
+        "distributed_systems"
+      ],
+      "suggested_difficulty": "medium",
+      "confidence": 0.6
+    }
+  ],
+  "combined_metrics": {
+    "clarification_habit": 0.602,
+    "structure": 0.73,
+    "tradeoff_awareness": 0.551,
+    "scalability_thinking": 0.491,
+    "failure_awareness": 0.663,
+    "adaptability": 0.681
+  },
+  "user_profile": {
+    "user_id": "user_abc123",
+    "target_role": "backend_engineer",
+    "experience_level": "intermediate",
+    "strengths": [
+      "algorithms",
+      "python",
+      "databases"
+    ],
+    "weaknesses": [
+      "system_design",
+      "distributed_systems"
+    ],
+    "focus_areas": [
+      "system design interviews",
+      "handling pressure"
+    ],
+    "previous_avg_stress": 0.52,
+    "session_count": 3
+  }
+}

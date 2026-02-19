@@ -1,0 +1,39 @@
+
+/* Base styles */
+#root {
+  width: 100%;
+  margin: 0 auto;
+  text-align: left;
+}
+
+/* Animation utilities */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+/* Flashcard animation */
+.animate-flip {
+  transform-style: preserve-3d;
+  transition: transform 0.6s;
+}
+
+.animate-flip.flipped {
+  transform: rotateY(180px);
+}
+
+/* Delay classes for staggered animations */
+.delay-100 {
+  animation-delay: 100ms;
+}
+
+.delay-200 {
+  animation-delay: 200ms;
+}
+
+.delay-300 {
+  animation-delay: 300ms;
+}
