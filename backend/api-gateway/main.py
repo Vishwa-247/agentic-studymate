@@ -324,7 +324,8 @@ app = FastAPI(
 
 # ── CORS ───────────────────────────────────────────────────────────
 _raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
-if _raw_origins.strip() == "*":
+_CORS_ALLOW_ALL = _raw_origins.strip() == "*"
+if _CORS_ALLOW_ALL:
     ALLOWED_ORIGINS = ["*"]
 else:
     ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
@@ -333,8 +334,8 @@ ALLOWED_ORIGIN_REGEX = os.getenv("ALLOWED_ORIGIN_REGEX", r"^https://.*\.lovable\
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
-    allow_credentials=True,
+    allow_origin_regex=None if _CORS_ALLOW_ALL else ALLOWED_ORIGIN_REGEX,
+    allow_credentials=not _CORS_ALLOW_ALL,  # credentials + '*' is invalid per spec
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -461,6 +462,8 @@ async def forward_to_agent(agent_name: str, path: str, method: str = "GET",
 def _is_origin_allowed(origin: str) -> bool:
     if not origin:
         return False
+    if _CORS_ALLOW_ALL:
+        return True
     if origin in ALLOWED_ORIGINS:
         return True
     try:
@@ -471,9 +474,15 @@ def _is_origin_allowed(origin: str) -> bool:
 
 def _preflight_headers(request: Request, methods: str) -> dict:
     origin = request.headers.get("origin", "")
-    h = {"Access-Control-Allow-Methods": methods, "Access-Control-Allow-Headers": "Content-Type, Authorization"}
-    if _is_origin_allowed(origin):
+    h = {
+        "Access-Control-Allow-Methods": methods,
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    }
+    if _CORS_ALLOW_ALL:
+        h["Access-Control-Allow-Origin"] = "*"
+    elif _is_origin_allowed(origin):
         h["Access-Control-Allow-Origin"] = origin
+        h["Access-Control-Allow-Credentials"] = "true"
         h["Vary"] = "Origin"
     return h
 
