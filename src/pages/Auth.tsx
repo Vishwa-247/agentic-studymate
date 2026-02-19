@@ -179,8 +179,13 @@ export default function Auth() {
       setIsLoading(true);
       await signUp(data.email, data.password, data.fullName);
       setActiveTab('login');
-    } catch (error) {
-      // Error is already handled in the hook
+    } catch (error: any) {
+      // If account already exists, switch to login tab and pre-fill email
+      if (error?.message === "ACCOUNT_EXISTS") {
+        loginForm.setValue("email", data.email);
+        setActiveTab("login");
+      }
+      // Other errors are already handled in the hook
     } finally {
       setIsLoading(false);
     }

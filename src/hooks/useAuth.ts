@@ -92,11 +92,9 @@ export const useAuth = () => {
       // Immediately update auth state to reduce loading time
       updateAuthState(session, false);
 
-      // Kick off gateway auth silently when signed in
-      if (event === "SIGNED_IN" && session?.user?.email) {
-        gatewayAuthService.signInToGateway(session.user.email).catch((err) => {
-          console.warn("Gateway sign-in failed:", err);
-        });
+      // Cache Supabase access token for gateway calls
+      if (event === "SIGNED_IN" && session?.access_token) {
+        gatewayAuthService.cacheToken(session.access_token);
       }
 
       // Show welcome toast only for new sign-ins, not page refreshes
@@ -181,7 +179,7 @@ export const useAuth = () => {
     setAuthState((prev) => ({ ...prev, signingUp: true }));
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -200,6 +198,25 @@ export const useAuth = () => {
           variant: "destructive",
         });
         throw error;
+      }
+
+      // Supabase returns a user with empty identities[] when the email
+      // already exists but email-confirmation is enabled.
+      // No error is thrown and no confirmation email is sent.
+      if (
+        data?.user &&
+        Array.isArray(data.user.identities) &&
+        data.user.identities.length === 0
+      ) {
+        console.warn("Sign up: email already exists (empty identities)");
+        const err = new Error("ACCOUNT_EXISTS");
+        toast({
+          title: "Account already exists",
+          description:
+            "An account with this email already exists. Please sign in instead.",
+          variant: "destructive",
+        });
+        throw err;
       }
 
       console.log("Sign up successful");

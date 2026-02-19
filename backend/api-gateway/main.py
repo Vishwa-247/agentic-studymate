@@ -331,8 +331,9 @@ ALLOWED_ORIGIN_REGEX = os.getenv("ALLOWED_ORIGIN_REGEX", r"^https://.*\.lovable\
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -374,6 +375,7 @@ JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
 JWT_ALGORITHM = "HS256"
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")  # from Supabase Dashboard → Settings → API → JWT Secret
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -383,16 +385,35 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Verify a bearer token. Tries Supabase JWT first, then falls back to legacy gateway JWT."""
     if credentials is None:
         raise HTTPException(status_code=401, detail="Missing Authorization header")
+    token = credentials.credentials
+
+    # 1. Try Supabase JWT (primary auth path)
+    if SUPABASE_JWT_SECRET:
+        try:
+            payload = jwt.decode(
+                token,
+                SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
+            user_id: str = payload.get("sub")
+            if user_id:
+                return user_id
+        except JWTError:
+            pass  # fall through to legacy
+
+    # 2. Fallback: legacy gateway JWT (backward compatibility)
     try:
-        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id: str = payload.get("uid") or payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
         return user_id
     except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
 async def resolve_user_uuid_by_email(email: str) -> Optional[str]:
@@ -526,29 +547,44 @@ async def health_check():
 
 @app.post("/auth/signin")
 async def sign_in(credentials: dict):
+    """Legacy gateway sign-in. Now validates Supabase token if provided."""
+    # If a supabase_token is provided, validate it and return user info
+    supabase_token = credentials.get("supabase_token")
+    if supabase_token and SUPABASE_JWT_SECRET:
+        try:
+            payload = jwt.decode(
+                supabase_token, SUPABASE_JWT_SECRET,
+                algorithms=["HS256"], audience="authenticated",
+            )
+            uid = payload.get("sub")
+            email = payload.get("email", "")
+            access_token = create_access_token(data={"sub": email, "uid": uid})
+            return {"access_token": access_token, "token_type": "bearer",
+                    "user": {"id": uid, "email": email, "name": email.split("@")[0].title()}}
+        except JWTError:
+            raise HTTPException(status_code=401, detail="Invalid Supabase token")
+
+    # Legacy email/password path (kept for backward compatibility)
     email = credentials.get("email")
     password = credentials.get("password")
     if not email or not password:
-        raise HTTPException(status_code=400, detail="Email and password required")
+        raise HTTPException(status_code=400, detail="Email and password (or supabase_token) required")
     uid = await resolve_user_uuid_by_email(email)
-    token_payload = {"sub": email}
-    if uid:
-        token_payload["uid"] = uid
+    if not uid:
+        raise HTTPException(status_code=401, detail="User not found")
+    token_payload = {"sub": email, "uid": uid}
     access_token = create_access_token(data=token_payload)
     return {"access_token": access_token, "token_type": "bearer",
-            "user": {"id": uid or email, "email": email, "name": email.split("@")[0].title()}}
+            "user": {"id": uid, "email": email, "name": email.split("@")[0].title()}}
 
 
 @app.post("/auth/signup")
 async def sign_up(user_data: dict):
-    email = user_data.get("email")
-    password = user_data.get("password")
-    name = user_data.get("name", email.split("@")[0].title() if email else "User")
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="Email and password required")
-    access_token = create_access_token(data={"sub": email})
-    return {"access_token": access_token, "token_type": "bearer",
-            "user": {"id": email, "email": email, "name": name}}
+    """Legacy sign-up. Users should sign up via Supabase Auth directly."""
+    raise HTTPException(
+        status_code=410,
+        detail="Direct gateway sign-up is disabled. Please sign up via the app (Supabase Auth).",
+    )
 
 
 @app.post("/auth/signout")

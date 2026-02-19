@@ -1,81 +1,70 @@
-const GATEWAY_URL = 'http://localhost:8000';
+import { supabase } from "@/integrations/supabase/client";
 
-const TOKEN_KEY = 'gateway_access_token';
-const EXPIRY_KEY = 'gateway_token_expiry';
+/**
+ * Gateway Auth Service — uses Supabase session tokens directly.
+ *
+ * Instead of maintaining a separate JWT issued by the gateway,
+ * we pass the Supabase access_token to the gateway which validates
+ * it using the Supabase JWT secret.
+ */
 
-function getStoredToken(): string | null {
+// In-memory cache so synchronous getGatewayToken() can return a value.
+// Updated whenever the auth state changes (SIGNED_IN event in useAuth)
+// or when ensureGatewayAuth() is called.
+let _cachedToken: string | null = null;
+
+/**
+ * Get a fresh Supabase access token from the current session.
+ * Also refreshes token internally if it is close to expiry.
+ */
+async function getSupabaseAccessToken(): Promise<string | null> {
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      _cachedToken = session.access_token;
+      return _cachedToken;
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
-function getStoredExpiry(): number | null {
-  try {
-    const raw = localStorage.getItem(EXPIRY_KEY);
-    return raw ? parseInt(raw, 10) : null;
-  } catch {
-    return null;
-  }
-}
-
-function setToken(token: string, expiresMsFromNow: number) {
-  try {
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(EXPIRY_KEY, String(Date.now() + expiresMsFromNow));
-  } catch {
-    // ignore storage errors
-  }
-}
-
-function clearToken() {
-  try {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(EXPIRY_KEY);
-  } catch {
-    // ignore
-  }
-}
-
-function isValid(): boolean {
-  const token = getStoredToken();
-  const exp = getStoredExpiry();
-  if (!token || !exp) return false;
-  return Date.now() < exp - 60_000; // 1 min skew
-}
-
-async function signInToGateway(email: string): Promise<string> {
-  const resp = await fetch(`${GATEWAY_URL}/auth/signin`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password: 'demo' }),
-  });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
-    throw new Error(`Gateway sign-in failed (${resp.status}): ${text}`);
-  }
-  const data = await resp.json();
-  const token = data?.access_token as string;
-  if (!token) throw new Error('Gateway did not return access_token');
-  // default 24h validity; gateway uses 24h in demo
-  setToken(token, 24 * 60 * 60 * 1000);
+/**
+ * Ensure we have a valid token for gateway requests.
+ * @param _email — kept for backward-compatible call-sites but now ignored.
+ */
+async function ensureGatewayAuth(_email?: string | null): Promise<string> {
+  const token = await getSupabaseAccessToken();
+  if (!token) throw new Error("No active session — please sign in");
   return token;
 }
 
-async function ensureGatewayAuth(email?: string | null): Promise<string> {
-  if (isValid()) {
-    const t = getStoredToken();
-    if (t) return t;
-  }
-  if (!email) throw new Error('No user email available for Gateway auth');
-  return await signInToGateway(email);
+/**
+ * Cache an already-known access token (called from useAuth on SIGNED_IN).
+ */
+function cacheToken(token: string) {
+  _cachedToken = token;
+}
+
+function clearToken() {
+  _cachedToken = null;
+}
+
+function isValid(): boolean {
+  return _cachedToken !== null;
 }
 
 export const gatewayAuthService = {
-  signInToGateway,
+  /** @deprecated — no longer calls the gateway; returns the Supabase token */
+  signInToGateway: async (_email: string): Promise<string> => {
+    return (await getSupabaseAccessToken()) ?? "";
+  },
   ensureGatewayAuth,
-  getGatewayToken: getStoredToken,
+  getGatewayToken: (): string | null => _cachedToken,
   clearGatewayToken: clearToken,
   isGatewayTokenValid: isValid,
+  cacheToken,
 };
