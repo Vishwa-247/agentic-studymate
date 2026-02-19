@@ -55,9 +55,15 @@ export default function ExperienceForm() {
       let updatedExperience;
 
       const experienceData: Experience = {
-        ...(data as Required<ExperienceFormData>),
-        technologies,
         id: editingId || Date.now().toString(),
+        company: data.company,
+        position: data.position,
+        startDate: data.startDate,
+        endDate: data.current ? undefined : (data.endDate || ''),
+        current: data.current,
+        description: data.description,
+        location: data.location,
+        technologies,
       };
 
       if (editingId) {

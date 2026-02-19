@@ -212,14 +212,14 @@ export default function SkillsForm() {
                     <div key={`${skill.name}-${index}`} className="group relative">
                       <Badge
                         variant="outline"
-                        className={`${getLevelColor(skill.level)} flex items-center gap-2 pr-1`}
+                        className={`${getLevelColor(skill.level)} flex items-center gap-1.5 pr-1`}
                       >
                         <span>{skill.name}</span>
                         <Select
                           value={skill.level}
                           onValueChange={(value: Skill['level']) => updateSkillLevel(skill, value)}
                         >
-                          <SelectTrigger className="h-4 w-4 border-0 bg-transparent p-0">
+                          <SelectTrigger className="h-auto w-auto border-0 bg-transparent/10 rounded px-1 py-0 text-xs gap-0.5 min-w-0">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>

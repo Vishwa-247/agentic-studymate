@@ -24,7 +24,7 @@ export interface Experience {
   company: string;
   position: string;
   startDate: string;
-  endDate: string;
+  endDate?: string;
   current: boolean;
   description: string;
   technologies: string[];

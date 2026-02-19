@@ -2,7 +2,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Circle, Edit3, Save, X } from "lucide-react";
-import { useState } from "react";
 
 interface ProfileSectionProps {
   title: string;
@@ -31,7 +30,12 @@ export default function ProfileSection({
   isEditing = false,
   isLoading = false
 }: ProfileSectionProps) {
-return (
+  // Only PersonalInfo uses the Edit/Save/Cancel flow from the header.
+  // Other forms (Education, Experience, Projects, Skills, Certifications) have
+  // their own inline Add/Edit/Delete buttons and don't need header controls.
+  const showEditControls = title === "Personal Info";
+
+  return (
     <Card className="relative">
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -42,7 +46,7 @@ return (
           <div className="flex items-center gap-3">
             <Badge 
               variant={isCompleted ? "default" : "outline"}
-              className={isCompleted ? "bg-success text-success-foreground" : ""}
+              className={isCompleted ? "bg-green-600 text-white" : ""}
             >
               {isCompleted ? (
                 <CheckCircle className="h-3 w-3 mr-1" />
@@ -52,8 +56,8 @@ return (
               {completionPercentage}%
             </Badge>
             
-            {/* Edit/Save/Cancel Controls */}
-            {title !== "Resume Upload" && title !== "Preview" && (
+            {/* Edit/Save/Cancel — only for PersonalInfo */}
+            {showEditControls && (
               <div className="flex items-center gap-1">
                 {!isEditing ? (
                   <Button 
