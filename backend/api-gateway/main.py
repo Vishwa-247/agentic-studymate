@@ -257,6 +257,7 @@ No preamble, no bullet points — just the 2 sentences."""
         resp_text = await _llm_call_with_fallback(
             [{"role": "user", "content": prompt}],
             temperature=0.3,
+            json_mode=False,
         )
         if resp_text:
             return resp_text
@@ -322,11 +323,11 @@ app = FastAPI(
 )
 
 # ── CORS ───────────────────────────────────────────────────────────
-ALLOWED_ORIGINS = [
-    o.strip()
-    for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
-    if o.strip()
-]
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
+if _raw_origins.strip() == "*":
+    ALLOWED_ORIGINS = ["*"]
+else:
+    ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 ALLOWED_ORIGIN_REGEX = os.getenv("ALLOWED_ORIGIN_REGEX", r"^https://.*\.lovable\.app$")
 
 app.add_middleware(
@@ -1174,10 +1175,11 @@ def _next_gemini_key() -> str:
     return next(_gemini_key_cycle) if _gemini_key_cycle else ""
 
 
-async def _llm_call_with_fallback(messages: list[dict], temperature: float = 0.1) -> str:
+async def _llm_call_with_fallback(messages: list[dict], temperature: float = 0.1, json_mode: bool = True) -> str:
     """
     Try Groq first (rotating keys), fall back to Gemini if all Groq keys fail.
     Returns the raw response text.
+    Set json_mode=False for plain-text responses (e.g. reasoning summaries).
     """
     # ── Try up to 3 different Groq keys ──
     groq_attempts = min(len(GROQ_KEY_POOL), 3) if GROQ_KEY_POOL else 0
@@ -1186,12 +1188,14 @@ async def _llm_call_with_fallback(messages: list[dict], temperature: float = 0.1
         try:
             from groq import Groq
             client = Groq(api_key=key)
-            completion = client.chat.completions.create(
+            kwargs = dict(
                 messages=messages,
                 model="llama-3.3-70b-versatile",
                 temperature=temperature,
-                response_format={"type": "json_object"},
             )
+            if json_mode:
+                kwargs["response_format"] = {"type": "json_object"}
+            completion = client.chat.completions.create(**kwargs)
             logger.info(f"✅ Groq succeeded (key ...{key[-6:]}, attempt {attempt+1})")
             return completion.choices[0].message.content
         except Exception as e:
@@ -1209,14 +1213,14 @@ async def _llm_call_with_fallback(messages: list[dict], temperature: float = 0.1
         try:
             async with httpx.AsyncClient(timeout=60.0) as hclient:
                 parts = [{"text": m.get("content", "")} for m in messages]
+                gen_config = {"temperature": temperature}
+                if json_mode:
+                    gen_config["responseMimeType"] = "application/json"
                 resp = await hclient.post(
                     f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}",
                     json={
                         "contents": [{"parts": parts}],
-                        "generationConfig": {
-                            "temperature": temperature,
-                            "responseMimeType": "application/json",
-                        },
+                        "generationConfig": gen_config,
                     },
                 )
                 if resp.status_code == 429:
